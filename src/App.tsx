@@ -18,6 +18,7 @@ import {
 import { getTodayDateKey } from './game/rng';
 import { sound } from './game/sound';
 import { loadProgress, saveProgress } from './game/storage';
+import { TUTORIAL_STEPS } from './game/tutorial';
 import type { GameMode, GameState, StoredProgress } from './game/types';
 
 interface ToastItem {
@@ -70,16 +71,30 @@ export function App() {
   const atmosphere = useMemo(() => getAtmosphereForRank(game.rank), [game.rank]);
 
   const currentHighScore = useMemo(() => {
+    if (game.mode === 'tutorial') return 0;
     if (game.mode === 'daily') {
       return progress.highScoreDaily[getTodayDateKey()] ?? 0;
     }
     return progress.highScoreFree;
   }, [game.mode, progress]);
 
+  const activeTutorialGuide = useMemo(() => {
+    if (game.mode !== 'tutorial' || game.tutorialCompleted) return null;
+    return TUTORIAL_STEPS[game.tutorialStep ?? 0] ?? null;
+  }, [game.mode, game.tutorialCompleted, game.tutorialStep]);
+
   const selectedCard = game.hand[game.selectedHandIndex] ?? null;
 
   const preview = useMemo(() => {
     if (!hoveredCoord || !selectedCard || game.isGameOver || game.pendingDraft) {
+      return null;
+    }
+    if (
+      activeTutorialGuide &&
+      (hoveredCoord.row !== activeTutorialGuide.targetRow ||
+        hoveredCoord.col !== activeTutorialGuide.targetCol ||
+        selectedCard.type !== activeTutorialGuide.requiredCardType)
+    ) {
       return null;
     }
     return evaluatePlacement(
@@ -89,7 +104,15 @@ export function App() {
       selectedCard.type,
       game.passives,
     );
-  }, [game.board, game.isGameOver, game.passives, game.pendingDraft, hoveredCoord, selectedCard]);
+  }, [
+    activeTutorialGuide,
+    game.board,
+    game.isGameOver,
+    game.passives,
+    game.pendingDraft,
+    hoveredCoord,
+    selectedCard,
+  ]);
 
   const persistProgress = useCallback((updater: (prev: StoredProgress) => StoredProgress) => {
     setProgress((prev) => {
@@ -99,13 +122,23 @@ export function App() {
     });
   }, []);
 
-  const handleSelectCard = useCallback((index: number) => {
-    sound.playCardSelect();
-    setGame((prev) => ({
-      ...prev,
-      selectedHandIndex: Math.min(index, Math.max(0, prev.hand.length - 1)),
-    }));
-  }, []);
+  const handleSelectCard = useCallback(
+    (index: number) => {
+      if (activeTutorialGuide) {
+        const clicked = game.hand[index];
+        if (clicked && clicked.type !== activeTutorialGuide.requiredCardType) {
+          pushToast('チュートリアル中は光っているガイドの手順で進めてね！', 'amber');
+          return;
+        }
+      }
+      sound.playCardSelect();
+      setGame((prev) => ({
+        ...prev,
+        selectedHandIndex: Math.min(index, Math.max(0, prev.hand.length - 1)),
+      }));
+    },
+    [activeTutorialGuide, game.hand, pushToast],
+  );
 
   const handleRestart = useCallback(
     (mode: GameMode) => {
@@ -114,9 +147,11 @@ export function App() {
       setHoveredCoord(null);
       setGame(createNewGame(mode));
       pushToast(
-        mode === 'daily'
-          ? '今日の島に挑戦スタート！'
-          : 'あたらしい島を生成したよ！',
+        mode === 'tutorial'
+          ? 'チュートリアル開始！光るマスに置いてみよう'
+          : mode === 'daily'
+            ? '今日の島に挑戦スタート！'
+            : 'あたらしい島を生成したよ！',
         'emerald',
       );
     },
@@ -200,38 +235,47 @@ export function App() {
         }
       }
 
-      // Persist best score / achievements / run count
-      const todayKey = getTodayDateKey();
-      const prevBest =
-        next.mode === 'daily'
-          ? (progress.highScoreDaily[todayKey] ?? 0)
-          : progress.highScoreFree;
-      if (next.score > prevBest && next.score > 0) {
-        setIsNewBestRun(true);
-      }
-
-      persistProgress((prev) => {
-        const nextDaily = { ...prev.highScoreDaily };
-        let nextFree = prev.highScoreFree;
-        if (next.mode === 'daily') {
-          nextDaily[todayKey] = Math.max(nextDaily[todayKey] ?? 0, next.score);
-        } else {
-          nextFree = Math.max(nextFree, next.score);
+      // Persist best score / achievements / run count (skip during tutorial)
+      if (next.mode !== 'tutorial') {
+        const todayKey = getTodayDateKey();
+        const prevBest =
+          next.mode === 'daily'
+            ? (progress.highScoreDaily[todayKey] ?? 0)
+            : progress.highScoreFree;
+        if (next.score > prevBest && next.score > 0) {
+          setIsNewBestRun(true);
         }
 
-        const mergedAchievements = Array.from(
-          new Set([...prev.unlockedAchievements, ...ev.unlockedAchievements]),
-        );
+        persistProgress((prev) => {
+          const nextDaily = { ...prev.highScoreDaily };
+          let nextFree = prev.highScoreFree;
+          if (next.mode === 'daily') {
+            nextDaily[todayKey] = Math.max(nextDaily[todayKey] ?? 0, next.score);
+          } else {
+            nextFree = Math.max(nextFree, next.score);
+          }
 
-        return {
-          ...prev,
-          highScoreFree: nextFree,
-          highScoreDaily: nextDaily,
-          bestRank: Math.max(prev.bestRank, next.rank),
-          totalRuns: next.isGameOver ? prev.totalRuns + 1 : prev.totalRuns,
-          unlockedAchievements: mergedAchievements,
-        };
-      });
+          const mergedAchievements = Array.from(
+            new Set([...prev.unlockedAchievements, ...ev.unlockedAchievements]),
+          );
+
+          return {
+            ...prev,
+            highScoreFree: nextFree,
+            highScoreDaily: nextDaily,
+            bestRank: Math.max(prev.bestRank, next.rank),
+            totalRuns: next.isGameOver ? prev.totalRuns + 1 : prev.totalRuns,
+            unlockedAchievements: mergedAchievements,
+          };
+        });
+      } else if (next.tutorialCompleted) {
+        window.setTimeout(() => sound.playRankUp(), 200);
+        void confetti({
+          particleCount: 80,
+          spread: 80,
+          origin: { y: 0.45 },
+        });
+      }
 
       if (next.isGameOver) {
         window.setTimeout(() => sound.playGameOver(), 280);
@@ -340,8 +384,27 @@ export function App() {
         />
 
         <main className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 items-start">
-          {/* Left: Island Board + Live Breakdown + Hand Deck */}
+          {/* Left: Tutorial Guide (if active) + Island Board + Live Breakdown + Hand Deck */}
           <div className="flex flex-col gap-3.5">
+            {activeTutorialGuide && (
+              <div className="rounded-3xl bg-gradient-to-r from-sky-500 to-emerald-500 p-3.5 sm:p-4 text-white shadow-lg border border-white/30 animate-toast-in">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="rounded-full bg-white/25 px-2.5 py-0.5 font-display text-[11px] font-black">
+                    STEP {activeTutorialGuide.step} / {activeTutorialGuide.totalSteps}
+                  </span>
+                  <span className="text-[11px] font-bold opacity-90">
+                    光っている「ここ！」マスをクリック
+                  </span>
+                </div>
+                <div className="mt-1.5 text-sm sm:text-base font-black">
+                  {activeTutorialGuide.title}
+                </div>
+                <p className="mt-0.5 text-xs font-bold text-white/95 leading-relaxed">
+                  {activeTutorialGuide.instruction}
+                </p>
+              </div>
+            )}
+
             <GameBoard
               board={game.board}
               selectedCardType={selectedCard?.type ?? null}
@@ -351,6 +414,14 @@ export function App() {
               isNight={atmosphere.isNight}
               seaClass={atmosphere.seaClass}
               shaking={shaking}
+              tutorialTarget={
+                activeTutorialGuide
+                  ? {
+                      row: activeTutorialGuide.targetRow,
+                      col: activeTutorialGuide.targetCol,
+                    }
+                  : null
+              }
               onHover={setHoveredCoord}
               onPlace={handlePlace}
             />
@@ -439,6 +510,39 @@ export function App() {
           isNewBest={isNewBestRun}
           onRestart={handleRestart}
         />
+      )}
+
+      {/* Tutorial Completed Modal */}
+      {game.tutorialCompleted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[32px] bg-white p-6 sm:p-7 shadow-2xl border-2 border-emerald-200 animate-toast-in text-slate-800 text-center">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-emerald-500 px-3.5 py-1 text-xs font-display font-black text-white shadow">
+              TUTORIAL CLEAR!
+            </div>
+            <h2 className="mt-3 text-2xl font-black text-slate-900">
+              バッチリ！ルールマスターだね！
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm font-bold text-slate-600 leading-relaxed">
+              「隣接シナジー」「海沿いボーナス」「3つ合体進化」「リクエスト達成」の4つを覚えれば、あとはもう思う存分コンボを狙うだけ！
+            </p>
+            <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleRestart('free')}
+                className="flex-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 py-3.5 px-4 text-sm font-black text-white shadow-lg hover:brightness-105 transition cursor-pointer"
+              >
+                フリー島で本番スタート！
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRestart('daily')}
+                className="rounded-2xl bg-amber-100 py-3.5 px-4 text-xs font-extrabold text-amber-800 hover:bg-amber-200 transition cursor-pointer"
+              >
+                今日の島へ
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Building & Achievements Guide Modal */}

@@ -17,6 +17,7 @@ import {
   randomInt,
   shuffleWithRng,
 } from './rng';
+import { createTutorialGame, TUTORIAL_STEPS } from './tutorial';
 import type {
   BuildingType,
   Card,
@@ -335,6 +336,9 @@ function pickQuest(
 }
 
 export function createNewGame(mode: GameMode, customSeedLabel?: string): GameState {
+  if (mode === 'tutorial') {
+    return createTutorialGame();
+  }
   const seedLabel =
     customSeedLabel ??
     (mode === 'daily' ? `DAILY-${getTodayDateKey()}` : createRandomSeedLabel());
@@ -712,9 +716,21 @@ export function applyPlacement(
   col: number,
   alreadyUnlockedAchievements: string[] = [],
 ): GameState {
-  if (state.isGameOver || state.pendingDraft) return state;
+  if (state.isGameOver || state.pendingDraft || state.tutorialCompleted) return state;
   const selectedCard = state.hand[state.selectedHandIndex];
   if (!selectedCard) return state;
+
+  if (state.mode === 'tutorial') {
+    const tutStep = TUTORIAL_STEPS[state.tutorialStep ?? 0];
+    if (
+      !tutStep ||
+      selectedCard.type !== tutStep.requiredCardType ||
+      row !== tutStep.targetRow ||
+      col !== tutStep.targetCol
+    ) {
+      return state;
+    }
+  }
 
   const preview = evaluatePlacement(
     state.board,
@@ -819,31 +835,55 @@ export function applyPlacement(
     nextQuests.push(picked.quest);
   }
 
-  // Trigger roguelike draft on rank-up
+  // Trigger roguelike draft on rank-up (skip during tutorial)
   let pendingDraft: DraftOption[] | null = null;
-  if (leveledUpTo !== null) {
+  if (leveledUpTo !== null && state.mode !== 'tutorial') {
     const draftRes = pickDraftOptions(rng);
     rng = draftRes.nextState;
     pendingDraft = draftRes.options;
   }
 
-  const unlockedAchievements = computeUnlockedAchievements(
-    nextScore,
-    nextRank,
-    nextStats,
-    alreadyUnlockedAchievements,
-  );
+  const nextTutorialStep =
+    state.mode === 'tutorial' ? (state.tutorialStep ?? 0) + 1 : undefined;
+  const tutorialCompleted =
+    state.mode === 'tutorial'
+      ? (nextTutorialStep ?? 0) >= TUTORIAL_STEPS.length
+      : undefined;
 
-  // Check game over only if no draft is waiting
+  const unlockedAchievements =
+    state.mode === 'tutorial'
+      ? []
+      : computeUnlockedAchievements(
+          nextScore,
+          nextRank,
+          nextStats,
+          alreadyUnlockedAchievements,
+        );
+
+  // Check game over only if no draft is waiting (and not in tutorial)
   let isGameOver = false;
   let gameOverReason: GameState['gameOverReason'] = null;
-  if (!pendingDraft) {
+  if (!pendingDraft && state.mode !== 'tutorial') {
     if (nextHand.length === 0) {
       isGameOver = true;
       gameOverReason = 'no_cards';
     } else if (!hasAnyValidMove(nextBoard, nextHand)) {
       isGameOver = true;
       gameOverReason = 'board_full';
+    }
+  }
+
+  let nextSelectedIndex = Math.min(
+    state.selectedHandIndex,
+    Math.max(0, nextHand.length - 1),
+  );
+  if (state.mode === 'tutorial' && !tutorialCompleted && nextTutorialStep !== undefined) {
+    const nextGuide = TUTORIAL_STEPS[nextTutorialStep];
+    if (nextGuide) {
+      const matchIdx = nextHand.findIndex((c) => c.type === nextGuide.requiredCardType);
+      if (matchIdx !== -1) {
+        nextSelectedIndex = matchIdx;
+      }
     }
   }
 
@@ -878,12 +918,14 @@ export function applyPlacement(
     rngState: rng,
     cardSeq,
     questSeq,
-    selectedHandIndex: Math.min(state.selectedHandIndex, Math.max(0, nextHand.length - 1)),
+    selectedHandIndex: nextSelectedIndex,
     pendingDraft,
     isGameOver,
     gameOverReason,
     history: nextHistory,
     lastTurnEvent,
+    tutorialStep: nextTutorialStep,
+    tutorialCompleted,
   };
 }
 

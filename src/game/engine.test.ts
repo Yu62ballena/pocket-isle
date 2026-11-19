@@ -8,6 +8,7 @@ import {
   evaluatePlacement,
   undoLastTurn,
 } from './engine';
+import { TUTORIAL_STEPS } from './tutorial';
 import type { Tile } from './types';
 
 function makeEmptyGrassBoard(): Tile[][] {
@@ -117,5 +118,20 @@ describe('POCKET ISLE core engine', () => {
     board[1][1].terrain = 'hill';
     expect(evaluatePlacement(board, 0, 0, 'bulldozer', createInitialPassives()).valid).toBe(false);
     expect(evaluatePlacement(board, 1, 1, 'bulldozer', createInitialPassives()).valid).toBe(true);
+  });
+
+  it('completes all 4 tutorial steps smoothly without getting stuck', () => {
+    let state = createNewGame('tutorial');
+    expect(state.mode).toBe('tutorial');
+    expect(state.tutorialCompleted).toBe(false);
+
+    for (const step of TUTORIAL_STEPS) {
+      expect(state.hand[state.selectedHandIndex]?.type).toBe(step.requiredCardType);
+      state = applyPlacement(state, step.targetRow, step.targetCol);
+    }
+
+    expect(state.tutorialCompleted).toBe(true);
+    expect(state.score).toBeGreaterThan(0);
+    expect(state.stats.totalMerges).toBeGreaterThanOrEqual(1);
   });
 });

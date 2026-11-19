@@ -10,7 +10,7 @@ export type BuildingType =
 
 export type CardType = BuildingType | 'bulldozer';
 
-export type GameMode = 'free' | 'daily';
+export type GameMode = 'free' | 'daily' | 'tutorial';
 
 export type AtmosphereId = 'morning' | 'day' | 'sunset' | 'night';
 
@@ -162,6 +162,8 @@ export interface GameState extends GameSnapshot {
   undosLeft: number;
   history: GameSnapshot[];
   lastTurnEvent: TurnEventSummary | null;
+  tutorialStep?: number;
+  tutorialCompleted?: boolean;
 }
 
 export interface AchievementDef {

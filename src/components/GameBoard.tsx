@@ -17,6 +17,7 @@ interface GameBoardProps {
   isNight: boolean;
   seaClass: string;
   shaking: boolean;
+  tutorialTarget?: { row: number; col: number } | null;
   onHover: (coord: { row: number; col: number } | null) => void;
   onPlace: (row: number, col: number) => void;
 }
@@ -30,6 +31,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isNight,
   seaClass,
   shaking,
+  tutorialTarget,
   onHover,
   onPlace,
 }) => {
@@ -130,6 +132,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 lastTurnEvent?.row === tile.row &&
                 lastTurnEvent?.col === tile.col;
               const isRecentNeighbor = recentAffectedSet.has(key);
+              const isTutorialTarget =
+                tutorialTarget?.row === tile.row &&
+                tutorialTarget?.col === tile.col;
+              const isCoastalHint =
+                selectedCardType === 'harbor' &&
+                tile.isCoastal &&
+                tile.terrain === 'grass' &&
+                !tile.building &&
+                !isHovered;
 
               const baseTileStyle = isNight
                 ? tile.isCoastal
@@ -152,21 +163,31 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       : `${TERRAIN_META[tile.terrain].name} — ${TERRAIN_META[tile.terrain].hint}`
                   }
                   className={`group relative aspect-square rounded-xl sm:rounded-2xl border-2 transition-all duration-150 flex items-center justify-center overflow-visible focus:outline-none ${baseTileStyle} ${
-                    isValidTarget
-                      ? preview.chainCount > 0
-                        ? 'z-30 -translate-y-0.5 border-amber-400 animate-pulse-gold cursor-pointer'
-                        : 'z-30 -translate-y-0.5 border-emerald-400 ring-2 ring-emerald-300/70 shadow-lg cursor-pointer'
-                      : isInvalidHover
-                        ? 'border-rose-400/80 opacity-80 cursor-not-allowed'
-                        : isMergeSource
-                          ? 'z-20 border-amber-400 animate-pulse-gold'
-                          : synergyDelta !== undefined
-                            ? synergyDelta > 0
-                              ? 'z-20 border-emerald-400 ring-2 ring-emerald-300/60'
-                              : 'z-20 border-rose-400 ring-2 ring-rose-300/60'
-                            : 'hover:brightness-105 cursor-pointer shadow-[inset_0_-3px_0_rgba(15,23,42,0.08)]'
+                    isTutorialTarget
+                      ? 'z-30 border-sky-400 ring-4 ring-sky-300/80 animate-pulse cursor-pointer'
+                      : isValidTarget
+                        ? preview.chainCount > 0
+                          ? 'z-30 -translate-y-0.5 border-amber-400 animate-pulse-gold cursor-pointer'
+                          : 'z-30 -translate-y-0.5 border-emerald-400 ring-2 ring-emerald-300/70 shadow-lg cursor-pointer'
+                        : isInvalidHover
+                          ? 'border-rose-400/80 opacity-80 cursor-not-allowed'
+                          : isMergeSource
+                            ? 'z-20 border-amber-400 animate-pulse-gold'
+                            : synergyDelta !== undefined
+                              ? synergyDelta > 0
+                                ? 'z-20 border-emerald-400 ring-2 ring-emerald-300/60'
+                                : 'z-20 border-rose-400 ring-2 ring-rose-300/60'
+                              : isCoastalHint
+                                ? 'border-sky-400/80 ring-1 ring-sky-300/60 cursor-pointer'
+                                : 'hover:brightness-105 cursor-pointer shadow-[inset_0_-3px_0_rgba(15,23,42,0.08)]'
                   }`}
                 >
+                  {/* Tutorial Target Marker */}
+                  {isTutorialTarget && !isHovered && (
+                    <span className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-display font-black text-white shadow-md animate-bounce">
+                      ここ！
+                    </span>
+                  )}
                   {/* Subtle coastal wave dot indicator for empty coastal tiles */}
                   {tile.isCoastal && !tile.building && tile.terrain === 'grass' && (
                     <span

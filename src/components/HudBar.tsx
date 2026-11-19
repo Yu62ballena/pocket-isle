@@ -2,6 +2,7 @@ import React from 'react';
 import {
   BookOpen,
   CalendarDays,
+  GraduationCap,
   RotateCcw,
   Shuffle,
   Sparkles,
@@ -82,7 +83,11 @@ export const HudBar: React.FC<HudBarProps> = ({
               </span>
             </div>
             <p className="text-[11px] font-bold opacity-65 mt-0.5">
-              {mode === 'daily' ? `今日の島 (${seedLabel})` : `フリー島 (${seedLabel})`}
+              {mode === 'tutorial'
+                ? 'チュートリアル（練習モード）'
+                : mode === 'daily'
+                  ? `今日の島 (${seedLabel})`
+                  : `フリー島 (${seedLabel})`}
             </p>
           </div>
         </div>
@@ -119,6 +124,18 @@ export const HudBar: React.FC<HudBarProps> = ({
             >
               <CalendarDays className="w-3.5 h-3.5" />
               今日の島
+            </button>
+            <button
+              type="button"
+              onClick={() => onRestart('tutorial')}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-extrabold transition cursor-pointer ${
+                mode === 'tutorial'
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'opacity-70 hover:opacity-100'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              チュートリアル
             </button>
           </div>
 
