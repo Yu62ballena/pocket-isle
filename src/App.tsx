@@ -13,11 +13,19 @@ import {
   applyPlacement,
   createNewGame,
   evaluatePlacement,
+  swapWithStorehouse,
   undoLastTurn,
+  useMayorMark,
 } from './game/engine';
 import { getTodayDateKey } from './game/rng';
 import { sound } from './game/sound';
-import { loadProgress, saveProgress } from './game/storage';
+import {
+  clearActiveGame,
+  loadActiveGame,
+  loadProgress,
+  saveActiveGame,
+  saveProgress,
+} from './game/storage';
 import { TUTORIAL_STEPS } from './game/tutorial';
 import type { GameMode, GameState, StoredProgress } from './game/types';
 
@@ -34,8 +42,15 @@ export function App() {
     return loaded;
   });
 
-  const [game, setGame] = useState<GameState>(() => createNewGame('free'));
+  const [game, setGame] = useState<GameState>(() => {
+    const saved = loadActiveGame();
+    return saved ?? createNewGame('free');
+  });
   const [hoveredCoord, setHoveredCoord] = useState<{
+    row: number;
+    col: number;
+  } | null>(null);
+  const [touchArmedCoord, setTouchArmedCoord] = useState<{
     row: number;
     col: number;
   } | null>(null);
@@ -45,6 +60,11 @@ export function App() {
   const [isNewBestRun, setIsNewBestRun] = useState(false);
 
   const shakeTimerRef = useRef<number | null>(null);
+
+  // Auto-save active run so players can resume anytime after closing/reloading
+  useEffect(() => {
+    saveActiveGame(game);
+  }, [game]);
 
   const pushToast = useCallback(
     (text: string, tone: ToastItem['tone'] = 'emerald') => {
@@ -132,19 +152,45 @@ export function App() {
         }
       }
       sound.playCardSelect();
+      setTouchArmedCoord(null);
       setGame((prev) => ({
         ...prev,
+        mayorMode: false,
         selectedHandIndex: Math.min(index, Math.max(0, prev.hand.length - 1)),
       }));
     },
     [activeTutorialGuide, game.hand, pushToast],
   );
 
+  const handleSwapStorehouse = useCallback(() => {
+    if (game.mode === 'tutorial' || game.isGameOver || game.pendingDraft) return;
+    const next = swapWithStorehouse(game);
+    if (next === game) return;
+    sound.playCardSelect();
+    setTouchArmedCoord(null);
+    setGame(next);
+    pushToast(
+      game.storedCard
+        ? '保管庫のカードと入れ替えたよ！'
+        : 'カードを保管庫にキープしたよ！',
+      'amber',
+    );
+  }, [game, pushToast]);
+
+  const handleToggleMayorMode = useCallback(() => {
+    if (game.mode === 'tutorial' || game.mayorMarks <= 0) return;
+    sound.playCardSelect();
+    setTouchArmedCoord(null);
+    setGame((prev) => ({ ...prev, mayorMode: !prev.mayorMode }));
+  }, [game.mayorMarks, game.mode]);
+
   const handleRestart = useCallback(
     (mode: GameMode) => {
       sound.playCardSelect();
+      clearActiveGame();
       setIsNewBestRun(false);
       setHoveredCoord(null);
+      setTouchArmedCoord(null);
       setGame(createNewGame(mode));
       pushToast(
         mode === 'tutorial'
@@ -300,13 +346,49 @@ export function App() {
     [persistProgress, pushToast],
   );
 
-  // Keyboard shortcuts: 1/2/3 card select, Z undo, R restart, M mute
+  const handleTileTap = useCallback(
+    (row: number, col: number, isTouch: boolean) => {
+      if (game.isGameOver || game.pendingDraft) return;
+
+      // Touch 2-step confirmation to eliminate accidental mis-taps on mobile
+      if (isTouch) {
+        const alreadyArmed =
+          touchArmedCoord?.row === row && touchArmedCoord?.col === col;
+        if (!alreadyArmed) {
+          setHoveredCoord({ row, col });
+          setTouchArmedCoord({ row, col });
+          sound.playHoverTick();
+          return;
+        }
+      }
+
+      setTouchArmedCoord(null);
+
+      // Mayor Mark emergency clear mode
+      if (game.mayorMode) {
+        const cleared = useMayorMark(game, row, col);
+        if (cleared !== game) {
+          sound.playBulldoze();
+          setGame(cleared);
+          pushToast('市長マークで更地にしたよ！', 'amber');
+        }
+        return;
+      }
+
+      handlePlace(row, col);
+    },
+    [game, handlePlace, pushToast, touchArmedCoord],
+  );
+
+  // Keyboard shortcuts: 1/2/3 card select, S storehouse, X mayor mode, Z undo, R restart, M mute
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (guideOpen || game.pendingDraft || game.isGameOver) return;
       if (e.key === '1' && game.hand.length >= 1) handleSelectCard(0);
       if (e.key === '2' && game.hand.length >= 2) handleSelectCard(1);
       if (e.key === '3' && game.hand.length >= 3) handleSelectCard(2);
+      if (e.key === 's' || e.key === 'S') handleSwapStorehouse();
+      if (e.key === 'x' || e.key === 'X') handleToggleMayorMode();
       if ((e.key === 'z' || e.key === 'Z') && !e.metaKey && !e.ctrlKey) {
         handleUndo();
       }
@@ -327,6 +409,8 @@ export function App() {
     guideOpen,
     handleRestart,
     handleSelectCard,
+    handleSwapStorehouse,
+    handleToggleMayorMode,
     handleToggleMute,
     handleUndo,
   ]);
@@ -368,6 +452,7 @@ export function App() {
       <div className="relative z-10 mx-auto max-w-5xl px-3 sm:px-5 py-4 sm:py-6 flex flex-col gap-4">
         <HudBar
           score={game.score}
+          population={game.population}
           highScore={currentHighScore}
           rank={game.rank}
           mode={game.mode}
@@ -408,7 +493,9 @@ export function App() {
             <GameBoard
               board={game.board}
               selectedCardType={selectedCard?.type ?? null}
+              mayorMode={game.mayorMode}
               hoveredCoord={hoveredCoord}
+              touchArmedCoord={touchArmedCoord}
               preview={preview}
               lastTurnEvent={game.lastTurnEvent}
               isNight={atmosphere.isNight}
@@ -423,7 +510,7 @@ export function App() {
                   : null
               }
               onHover={setHoveredCoord}
-              onPlace={handlePlace}
+              onTileTap={handleTileTap}
             />
 
             {/* Live score breakdown strip for instant readability */}
@@ -476,9 +563,15 @@ export function App() {
             <HandDeck
               hand={game.hand}
               deckCount={game.deck.length}
+              storedCard={game.storedCard}
+              mayorMarks={game.mayorMarks}
+              mayorMode={game.mayorMode}
+              isTutorial={game.mode === 'tutorial'}
               selectedIndex={game.selectedHandIndex}
               isNight={atmosphere.isNight}
               onSelect={handleSelectCard}
+              onSwapStorehouse={handleSwapStorehouse}
+              onToggleMayorMode={handleToggleMayorMode}
             />
           </div>
 

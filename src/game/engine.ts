@@ -1,11 +1,13 @@
 import {
   BOARD_SIZE,
   BUILDING_SYNERGY,
+  calculatePopulation,
   CARD_META,
   DRAFT_POOL,
   getThresholdForRank,
   HAND_SIZE,
   INITIAL_DECK_SIZE,
+  MAX_MAYOR_MARKS,
   MAX_UNDOS,
   TERRAIN_META,
   TERRAIN_SYNERGY,
@@ -180,9 +182,12 @@ function cloneSnapshot(state: GameSnapshot): GameSnapshot {
   return {
     board: cloneBoard(state.board),
     score: state.score,
+    population: state.population,
     rank: state.rank,
     hand: state.hand.map((c) => ({ ...c })),
     deck: state.deck.map((c) => ({ ...c })),
+    storedCard: state.storedCard ? { ...state.storedCard } : null,
+    mayorMarks: state.mayorMarks,
     quests: state.quests.map((q) => ({ ...q })),
     passives: {
       ...state.passives,
@@ -368,9 +373,12 @@ export function createNewGame(mode: GameMode, customSeedLabel?: string): GameSta
     seedLabel,
     board: boardRes.board,
     score: 0,
+    population: 0,
     rank: 1,
     hand,
     deck,
+    storedCard: null,
+    mayorMarks: 1,
     quests: [q1.quest, q2.quest],
     passives: createInitialPassives(),
     stats: createInitialStats(),
@@ -378,6 +386,7 @@ export function createNewGame(mode: GameMode, customSeedLabel?: string): GameSta
     cardSeq,
     questSeq,
     selectedHandIndex: 0,
+    mayorMode: false,
     pendingDraft: null,
     isGameOver: false,
     gameOverReason: null,
@@ -472,6 +481,105 @@ export function evaluatePlacement(
       totalScore: 5,
       synergies: [],
       mergeSteps: [],
+    };
+  }
+
+  // Wildcard Crystal: automatically morphs into the highest-value mergeable neighbor match (even Lv2->Lv3 or Lv3->Lv4!)
+  if (cardType === 'crystal') {
+    let bestPreview: PlacementPreview | null = null;
+    const seenCandidates = new Set<string>();
+
+    for (const [dr, dc] of ORTHO_DIRS) {
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) continue;
+      const nb = board[nr][nc].building;
+      if (!nb || !CARD_META[nb.type].mergeable || nb.level >= 4) continue;
+
+      const candKey = `${nb.type}:${nb.level}`;
+      if (seenCandidates.has(candKey)) continue;
+      seenCandidates.add(candKey);
+
+      const sim = cloneBoard(board);
+      sim[row][col].building = { type: nb.type, level: nb.level };
+      const initialGroup = findConnectedSameBuildings(sim, row, col);
+      if (initialGroup.length < 3) continue;
+
+      const mergeSteps: MergeStepPreview[] = [];
+      let mergeScore = 0;
+      let curLv: 1 | 2 | 3 | 4 = nb.level;
+      while (curLv < 4) {
+        const group = findConnectedSameBuildings(sim, row, col);
+        if (group.length < 3) break;
+        const nextLv = (curLv + 1) as 2 | 3 | 4;
+        const consumed = group.filter((g) => !(g.row === row && g.col === col));
+        for (const c of consumed) {
+          sim[c.row][c.col].building = null;
+        }
+        sim[row][col].building = { type: nb.type, level: nextLv };
+        const extraTilesBonus = (group.length - 3) * 8;
+        const stepBonus =
+          Math.round(CARD_META[nb.type].baseScores[nextLv - 1] * 0.85) +
+          passives.mergeFlatBonus +
+          extraTilesBonus;
+        mergeScore += stepBonus;
+        mergeSteps.push({
+          level: nextLv,
+          buildingType: nb.type,
+          consumedCoords: consumed,
+          bonus: stepBonus,
+        });
+        curLv = nextLv;
+      }
+
+      const chainCount = mergeSteps.length;
+      const baseScore = 12 + passives.allBaseBonus;
+      const baseMult =
+        chainCount === 1 ? 1.45 : chainCount === 2 ? 2.2 : chainCount === 3 ? 3.2 : 4.2;
+      const multiplier = Number((baseMult + passives.mergeMultiplierBonus).toFixed(2));
+      const totalScore = Math.round((baseScore + mergeScore) * multiplier);
+
+      const candidate: PlacementPreview = {
+        valid: true,
+        row,
+        col,
+        cardType: 'crystal',
+        baseScore,
+        synergyScore: 0,
+        coastalBonus: 0,
+        mergeScore,
+        chainCount,
+        multiplier,
+        totalScore,
+        synergies: [],
+        mergeSteps,
+        resultingLevel: curLv,
+        crystalTargetType: nb.type,
+      };
+
+      if (
+        !bestPreview ||
+        (candidate.resultingLevel ?? 1) > (bestPreview.resultingLevel ?? 1) ||
+        ((candidate.resultingLevel ?? 1) === (bestPreview.resultingLevel ?? 1) &&
+          candidate.totalScore > bestPreview.totalScore)
+      ) {
+        bestPreview = candidate;
+      }
+    }
+
+    if (bestPreview) {
+      return bestPreview;
+    }
+
+    // Fallback: if no 2+ matching neighbors, crystal acts as a shining mini-landmark
+    const fallback = evaluatePlacement(board, row, col, 'landmark', passives);
+    return {
+      ...fallback,
+      cardType: 'crystal',
+      baseScore: 12 + passives.allBaseBonus,
+      totalScore: Math.max(12, fallback.totalScore - 8),
+      crystalTargetType: 'landmark',
+      resultingLevel: 1,
     };
   }
 
@@ -753,6 +861,21 @@ export function applyPlacement(
   if (selectedCard.type === 'bulldozer') {
     nextBoard[row][col].building = null;
     nextBoard[row][col].terrain = 'grass';
+  } else if (selectedCard.type === 'crystal') {
+    const targetType: BuildingType = preview.crystalTargetType ?? 'landmark';
+    nextBoard[row][col].building = {
+      type: targetType,
+      level: 1,
+    };
+    for (const step of preview.mergeSteps) {
+      for (const c of step.consumedCoords) {
+        nextBoard[c.row][c.col].building = null;
+      }
+      nextBoard[row][col].building = {
+        type: step.buildingType,
+        level: step.level,
+      };
+    }
   } else {
     nextBoard[row][col].building = {
       type: selectedCard.type,
@@ -772,6 +895,7 @@ export function applyPlacement(
   // Remove used card from hand
   const nextHand = state.hand.filter((_, i) => i !== state.selectedHandIndex);
   const nextDeck = [...state.deck];
+  let nextStoredCard = state.storedCard ? { ...state.storedCard } : null;
 
   // Update stats
   const nextStats: RunStats = {
@@ -786,7 +910,10 @@ export function applyPlacement(
     ),
     buildingCounts: { ...state.stats.buildingCounts },
   };
-  if (selectedCard.type !== 'bulldozer') {
+  if (selectedCard.type === 'crystal') {
+    const resolvedType = preview.crystalTargetType ?? 'landmark';
+    nextStats.buildingCounts[resolvedType] += 1;
+  } else if (selectedCard.type !== 'bulldozer') {
     nextStats.buildingCounts[selectedCard.type] += 1;
   }
 
@@ -813,17 +940,30 @@ export function applyPlacement(
     }
   }
 
-  // Refill hand from deck
+  // Refill hand from deck (and auto-pull from storehouse if both hand & deck are empty)
   while (nextHand.length < HAND_SIZE && nextDeck.length > 0) {
     nextHand.push(nextDeck.shift()!);
   }
+  if (nextHand.length === 0 && nextStoredCard) {
+    nextHand.push(nextStoredCard);
+    nextStoredCard = null;
+  }
 
-  // Compute rank progression
+  // Compute rank progression & Mayor Mark refill every 3 ranks (Rank 3, 6, 9...)
   let nextRank = state.rank;
   while (nextScore >= getThresholdForRank(nextRank + 1)) {
     nextRank += 1;
   }
   const leveledUpTo = nextRank > state.rank ? nextRank : null;
+  const mayorMarksEarned =
+    state.mode === 'tutorial'
+      ? 0
+      : Math.max(0, Math.floor(nextRank / 3) - Math.floor(state.rank / 3));
+  const nextMayorMarks = Math.min(
+    MAX_MAYOR_MARKS,
+    state.mayorMarks + mayorMarksEarned,
+  );
+  const nextPopulation = calculatePopulation(nextBoard);
 
   // Refill completed quests
   const nextQuests = [...remainingQuests];
@@ -867,7 +1007,11 @@ export function applyPlacement(
     if (nextHand.length === 0) {
       isGameOver = true;
       gameOverReason = 'no_cards';
-    } else if (!hasAnyValidMove(nextBoard, nextHand)) {
+    } else if (
+      !hasAnyValidMove(nextBoard, nextHand) &&
+      (!nextStoredCard || !hasAnyValidMove(nextBoard, [nextStoredCard])) &&
+      nextMayorMarks === 0
+    ) {
       isGameOver = true;
       gameOverReason = 'board_full';
     }
@@ -910,15 +1054,19 @@ export function applyPlacement(
     ...state,
     board: nextBoard,
     score: nextScore,
+    population: nextPopulation,
     rank: nextRank,
     hand: nextHand,
     deck: nextDeck,
+    storedCard: nextStoredCard,
+    mayorMarks: nextMayorMarks,
     quests: nextQuests,
     stats: nextStats,
     rngState: rng,
     cardSeq,
     questSeq,
     selectedHandIndex: nextSelectedIndex,
+    mayorMode: false,
     pendingDraft,
     isGameOver,
     gameOverReason,
@@ -971,12 +1119,12 @@ export function applyDraftChoice(state: GameState, optionId: string): GameState 
     type,
   }));
 
-  // Guarantee special cards (landmark / bulldozer) show up near the front so players feel them right away
+  // Guarantee special cards (landmark / bulldozer / crystal) show up near the front so players feel them right away
   const specials = newCards.filter(
-    (c) => c.type === 'landmark' || c.type === 'bulldozer',
+    (c) => c.type === 'landmark' || c.type === 'bulldozer' || c.type === 'crystal',
   );
   const regulars = newCards.filter(
-    (c) => c.type !== 'landmark' && c.type !== 'bulldozer',
+    (c) => c.type !== 'landmark' && c.type !== 'bulldozer' && c.type !== 'crystal',
   );
   const shuffledCombined = shuffleWithRng([...state.deck, ...regulars], rng);
   rng = shuffledCombined.nextState;
@@ -993,7 +1141,11 @@ export function applyDraftChoice(state: GameState, optionId: string): GameState 
   if (nextHand.length === 0) {
     isGameOver = true;
     gameOverReason = 'no_cards';
-  } else if (!hasAnyValidMove(state.board, nextHand)) {
+  } else if (
+    !hasAnyValidMove(state.board, nextHand) &&
+    (!state.storedCard || !hasAnyValidMove(state.board, [state.storedCard])) &&
+    state.mayorMarks === 0
+  ) {
     isGameOver = true;
     gameOverReason = 'board_full';
   }
@@ -1012,6 +1164,78 @@ export function applyDraftChoice(state: GameState, optionId: string): GameState 
   };
 }
 
+export function swapWithStorehouse(state: GameState): GameState {
+  if (state.isGameOver || state.pendingDraft || state.mode === 'tutorial') {
+    return state;
+  }
+  const selected = state.hand[state.selectedHandIndex];
+  if (!selected) return state;
+
+  const nextHand = [...state.hand];
+  const nextDeck = [...state.deck];
+  let nextStored: Card | null = state.storedCard ? { ...state.storedCard } : null;
+
+  if (nextStored) {
+    // Swap selected hand card with stored card
+    nextHand[state.selectedHandIndex] = nextStored;
+    nextStored = selected;
+  } else {
+    // Stash selected card only if we have another card to play (either in deck or hand)
+    if (nextHand.length <= 1 && nextDeck.length === 0) {
+      return state;
+    }
+    nextStored = selected;
+    nextHand.splice(state.selectedHandIndex, 1);
+    if (nextDeck.length > 0) {
+      nextHand.splice(state.selectedHandIndex, 0, nextDeck.shift()!);
+    }
+  }
+
+  return {
+    ...state,
+    hand: nextHand,
+    deck: nextDeck,
+    storedCard: nextStored,
+    mayorMode: false,
+    selectedHandIndex: Math.min(state.selectedHandIndex, Math.max(0, nextHand.length - 1)),
+  };
+}
+
+export function useMayorMark(
+  state: GameState,
+  row: number,
+  col: number,
+): GameState {
+  if (
+    state.isGameOver ||
+    state.pendingDraft ||
+    state.mode === 'tutorial' ||
+    state.mayorMarks <= 0
+  ) {
+    return state;
+  }
+  if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return state;
+  const tile = state.board[row][col];
+  if (!tile.building && tile.terrain === 'grass') return state;
+
+  const snapshot = cloneSnapshot(state);
+  const nextHistory = [...state.history, snapshot].slice(-MAX_UNDOS);
+
+  const nextBoard = cloneBoard(state.board);
+  nextBoard[row][col].building = null;
+  nextBoard[row][col].terrain = 'grass';
+
+  return {
+    ...state,
+    board: nextBoard,
+    population: calculatePopulation(nextBoard),
+    mayorMarks: state.mayorMarks - 1,
+    mayorMode: false,
+    history: nextHistory,
+    lastTurnEvent: null,
+  };
+}
+
 export function undoLastTurn(state: GameState): GameState {
   if (state.undosLeft <= 0 || state.history.length === 0) return state;
   const previous = state.history[state.history.length - 1];
@@ -1020,6 +1244,7 @@ export function undoLastTurn(state: GameState): GameState {
   return {
     ...state,
     ...cloneSnapshot(previous),
+    mayorMode: false,
     pendingDraft: null,
     isGameOver: false,
     gameOverReason: null,

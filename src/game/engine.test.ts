@@ -6,7 +6,9 @@ import {
   createInitialPassives,
   createNewGame,
   evaluatePlacement,
+  swapWithStorehouse,
   undoLastTurn,
+  useMayorMark,
 } from './engine';
 import { TUTORIAL_STEPS } from './tutorial';
 import type { Tile } from './types';
@@ -133,5 +135,41 @@ describe('POCKET ISLE core engine', () => {
     expect(state.tutorialCompleted).toBe(true);
     expect(state.score).toBeGreaterThan(0);
     expect(state.stats.totalMerges).toBeGreaterThanOrEqual(1);
+  });
+
+  it('morphs wildcard crystal into highest mergeable neighbor and evolves Lv3 -> Lv4', () => {
+    const board = makeEmptyGrassBoard();
+    board[2][1].building = { type: 'house', level: 3 };
+    board[2][3].building = { type: 'house', level: 3 };
+
+    const preview = evaluatePlacement(board, 2, 2, 'crystal', createInitialPassives());
+    expect(preview.valid).toBe(true);
+    expect(preview.crystalTargetType).toBe('house');
+    expect(preview.resultingLevel).toBe(4);
+    expect(preview.chainCount).toBe(1);
+  });
+
+  it('supports storehouse stashing/swapping and mayor mark clearing', () => {
+    let state = createNewGame('free', 'TOOL-SEED');
+    const firstCard = state.hand[0];
+    state = swapWithStorehouse(state);
+    expect(state.storedCard?.id).toBe(firstCard.id);
+    expect(state.hand[0].id).not.toBe(firstCard.id);
+
+    // Swap back
+    state = swapWithStorehouse(state);
+    expect(state.hand[0].id).toBe(firstCard.id);
+
+    // Place a building and clear it with mayor mark
+    state = {
+      ...state,
+      board: makeEmptyGrassBoard(),
+      mayorMarks: 1,
+    };
+    state.board[1][1].building = { type: 'factory', level: 2 };
+    const cleared = useMayorMark(state, 1, 1);
+    expect(cleared.board[1][1].building).toBeNull();
+    expect(cleared.mayorMarks).toBe(0);
+    expect(cleared.population).toBe(0);
   });
 });

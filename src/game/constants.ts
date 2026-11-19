@@ -5,12 +5,14 @@ import type {
   CardType,
   DraftOption,
   TerrainType,
+  Tile,
 } from './types';
 
 export const BOARD_SIZE = 6;
 export const HAND_SIZE = 3;
 export const INITIAL_DECK_SIZE = 20;
-export const MAX_UNDOS = 2;
+export const MAX_UNDOS = 3;
+export const MAX_MAYOR_MARKS = 3;
 
 export interface CardMeta {
   type: CardType;
@@ -124,6 +126,20 @@ export const CARD_META: Record<CardType, CardMeta> = {
     summary: '邪魔な建物や地形を更地に戻す！大連鎖の仕込みに◎',
     likes: '既設の建物・森・池・丘に使用可能',
     dislikes: '更地には使えない',
+    mergeable: false,
+  },
+  crystal: {
+    type: 'crystal',
+    name: '虹のクリスタル',
+    shortName: 'クリスタル',
+    levelNames: ['虹のクリスタル', '虹のクリスタル', '虹のクリスタル', '虹のクリスタル'],
+    baseScores: [12, 12, 12, 12],
+    accentBg: 'from-cyan-400/25 via-fuchsia-400/25 to-amber-300/25',
+    accentBorder: 'border-cyan-400/80',
+    accentText: 'text-cyan-700',
+    summary: '万能ワイルドカード！隣接する同種2つ以上と合体して一気に進化させる！',
+    likes: 'どの建物の2つ揃いにも合体可能（Lv2→Lv3、Lv3→Lv4の切り札！）',
+    dislikes: '合体できる隣がないと基礎点のみ',
     mergeable: false,
   },
 };
@@ -309,12 +325,22 @@ export const DRAFT_POOL: DraftOption[] = [
     effectKey: 'coastal_industry',
   },
   {
+    id: 'chain_master',
+    title: '大連鎖マスター',
+    subtitle: '虹のクリスタル＆同種合体でLv4と大連鎖を狙う',
+    accent: 'from-violet-500 to-amber-500',
+    badge: 'COMBO',
+    cards: ['crystal', 'house', 'house', 'park', 'market', 'market'],
+    passiveDescription: '合体進化するたびに追加ボーナス +12pt',
+    effectKey: 'chain_master',
+  },
+  {
     id: 'grand_landmark',
     title: '観光ランドマーク',
-    subtitle: '街の象徴を建てて周囲8マスから特大収穫',
+    subtitle: '名所とクリスタルで一気に街を格上げ',
     accent: 'from-fuchsia-500 to-pink-500',
     badge: 'SPECIAL',
-    cards: ['landmark', 'park', 'park', 'house', 'market'],
+    cards: ['landmark', 'crystal', 'park', 'house', 'market'],
     passiveDescription: '合体進化(MERGE)の倍率 +0.25',
     effectKey: 'grand_landmark',
   },
@@ -338,17 +364,28 @@ export const DRAFT_POOL: DraftOption[] = [
     passiveDescription: '港の海沿いボーナス さらに +4',
     effectKey: 'waterfront',
   },
-  {
-    id: 'chain_master',
-    title: '大連鎖マスター',
-    subtitle: '同種3つ合体とCHAINで盤面を爆発させる',
-    accent: 'from-violet-500 to-amber-500',
-    badge: 'COMBO',
-    cards: ['house', 'house', 'park', 'park', 'market', 'market', 'harbor'],
-    passiveDescription: '合体進化するたびに追加ボーナス +12pt',
-    effectKey: 'chain_master',
-  },
 ];
+
+const POPULATION_TABLE: Record<BuildingType, [number, number, number, number]> = {
+  house: [120, 480, 1600, 6500],
+  park: [40, 150, 500, 1800],
+  market: [80, 320, 1100, 4200],
+  factory: [60, 240, 850, 3200],
+  harbor: [70, 280, 950, 3600],
+  landmark: [1500, 1500, 1500, 1500],
+};
+
+export function calculatePopulation(board: Tile[][]): number {
+  let total = 0;
+  for (const row of board) {
+    for (const tile of row) {
+      if (tile.building) {
+        total += POPULATION_TABLE[tile.building.type][tile.building.level - 1];
+      }
+    }
+  }
+  return total;
+}
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   {

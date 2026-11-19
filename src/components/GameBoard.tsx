@@ -11,7 +11,9 @@ import { BuildingArt, TerrainArt } from './BuildingArt';
 interface GameBoardProps {
   board: Tile[][];
   selectedCardType: CardType | null;
+  mayorMode: boolean;
   hoveredCoord: { row: number; col: number } | null;
+  touchArmedCoord: { row: number; col: number } | null;
   preview: PlacementPreview | null;
   lastTurnEvent: TurnEventSummary | null;
   isNight: boolean;
@@ -19,13 +21,15 @@ interface GameBoardProps {
   shaking: boolean;
   tutorialTarget?: { row: number; col: number } | null;
   onHover: (coord: { row: number; col: number } | null) => void;
-  onPlace: (row: number, col: number) => void;
+  onTileTap: (row: number, col: number, isTouch: boolean) => void;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
   board,
   selectedCardType,
+  mayorMode,
   hoveredCoord,
+  touchArmedCoord,
   preview,
   lastTurnEvent,
   isNight,
@@ -33,7 +37,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   shaking,
   tutorialTarget,
   onHover,
-  onPlace,
+  onTileTap,
 }) => {
   const synergyMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -124,8 +128,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               const key = `${tile.row},${tile.col}`;
               const isHovered =
                 hoveredCoord?.row === tile.row && hoveredCoord?.col === tile.col;
-              const isValidTarget = isHovered && preview?.valid;
-              const isInvalidHover = isHovered && preview && !preview.valid;
+              const isTouchArmed =
+                touchArmedCoord?.row === tile.row &&
+                touchArmedCoord?.col === tile.col;
+              const isMayorTargetable =
+                mayorMode && (tile.building !== null || tile.terrain !== 'grass');
+              const isValidTarget = !mayorMode && isHovered && preview?.valid;
+              const isInvalidHover = !mayorMode && isHovered && preview && !preview.valid;
               const synergyDelta = synergyMap.get(key);
               const isMergeSource = mergeConsumedSet.has(key);
               const isJustPlaced =
@@ -156,32 +165,53 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   type="button"
                   onMouseEnter={() => onHover({ row: tile.row, col: tile.col })}
                   onFocus={() => onHover({ row: tile.row, col: tile.col })}
-                  onClick={() => onPlace(tile.row, tile.col)}
+                  onPointerUp={(e) => {
+                    if (e.pointerType === 'touch') {
+                      e.preventDefault();
+                      onTileTap(tile.row, tile.col, true);
+                    }
+                  }}
+                  onClick={(e) => {
+                    // Touch devices are already handled cleanly in onPointerUp with 2-step confirmation
+                    if (e.detail === 0 || (e.nativeEvent as PointerEvent).pointerType !== 'touch') {
+                      onTileTap(tile.row, tile.col, false);
+                    }
+                  }}
                   title={
                     tile.building
                       ? `${CARD_META[tile.building.type].levelNames[tile.building.level - 1]} (Lv${tile.building.level})`
                       : `${TERRAIN_META[tile.terrain].name} — ${TERRAIN_META[tile.terrain].hint}`
                   }
                   className={`group relative aspect-square rounded-xl sm:rounded-2xl border-2 transition-all duration-150 flex items-center justify-center overflow-visible focus:outline-none ${baseTileStyle} ${
-                    isTutorialTarget
-                      ? 'z-30 border-sky-400 ring-4 ring-sky-300/80 animate-pulse cursor-pointer'
-                      : isValidTarget
-                        ? preview.chainCount > 0
-                          ? 'z-30 -translate-y-0.5 border-amber-400 animate-pulse-gold cursor-pointer'
-                          : 'z-30 -translate-y-0.5 border-emerald-400 ring-2 ring-emerald-300/70 shadow-lg cursor-pointer'
-                        : isInvalidHover
-                          ? 'border-rose-400/80 opacity-80 cursor-not-allowed'
-                          : isMergeSource
-                            ? 'z-20 border-amber-400 animate-pulse-gold'
-                            : synergyDelta !== undefined
-                              ? synergyDelta > 0
-                                ? 'z-20 border-emerald-400 ring-2 ring-emerald-300/60'
-                                : 'z-20 border-rose-400 ring-2 ring-rose-300/60'
-                              : isCoastalHint
-                                ? 'border-sky-400/80 ring-1 ring-sky-300/60 cursor-pointer'
-                                : 'hover:brightness-105 cursor-pointer shadow-[inset_0_-3px_0_rgba(15,23,42,0.08)]'
+                    isMayorTargetable
+                      ? isHovered
+                        ? 'z-30 -translate-y-0.5 border-orange-500 ring-2 ring-orange-400 cursor-pointer'
+                        : 'border-orange-400/70 border-dashed cursor-pointer'
+                      : isTutorialTarget
+                        ? 'z-30 border-sky-400 ring-4 ring-sky-300/80 animate-pulse cursor-pointer'
+                        : isValidTarget
+                          ? preview.chainCount > 0
+                            ? 'z-30 -translate-y-0.5 border-amber-400 animate-pulse-gold cursor-pointer'
+                            : 'z-30 -translate-y-0.5 border-emerald-400 ring-2 ring-emerald-300/70 shadow-lg cursor-pointer'
+                          : isInvalidHover
+                            ? 'border-rose-400/80 opacity-80 cursor-not-allowed'
+                            : isMergeSource
+                              ? 'z-20 border-amber-400 animate-pulse-gold'
+                              : synergyDelta !== undefined
+                                ? synergyDelta > 0
+                                  ? 'z-20 border-emerald-400 ring-2 ring-emerald-300/60'
+                                  : 'z-20 border-rose-400 ring-2 ring-rose-300/60'
+                                : isCoastalHint
+                                  ? 'border-sky-400/80 ring-1 ring-sky-300/60 cursor-pointer'
+                                  : 'hover:brightness-105 cursor-pointer shadow-[inset_0_-3px_0_rgba(15,23,42,0.08)]'
                   }`}
                 >
+                  {/* Mayor Mode hover badge */}
+                  {isMayorTargetable && isHovered && (
+                    <span className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-display font-black text-white shadow-md">
+                      {isTouchArmed ? 'もう1回で撤去' : '市長撤去'}
+                    </span>
+                  )}
                   {/* Tutorial Target Marker */}
                   {isTutorialTarget && !isHovered && (
                     <span className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-display font-black text-white shadow-md animate-bounce">
@@ -256,7 +286,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                       <div className="w-[82%] h-[82%] opacity-75 scale-105 transition-transform">
                         <BuildingArt
-                          type={selectedCardType}
+                          type={preview.crystalTargetType ?? selectedCardType}
                           level={preview.resultingLevel ?? 1}
                           isNight={isNight}
                         />
@@ -273,6 +303,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                                 : 'bg-slate-900 text-white border-white/30'
                         }`}
                       >
+                        {isTouchArmed ? 'もう1回で決定 ' : ''}
                         {preview.chainCount >= 2
                           ? `CHAIN×${preview.chainCount} +${preview.totalScore}`
                           : preview.chainCount === 1

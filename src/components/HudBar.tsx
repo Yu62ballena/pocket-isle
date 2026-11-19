@@ -8,6 +8,7 @@ import {
   Sparkles,
   Trophy,
   Undo2,
+  Users,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import type { GameMode } from '../game/types';
 
 interface HudBarProps {
   score: number;
+  population: number;
   highScore: number;
   rank: number;
   mode: GameMode;
@@ -33,6 +35,7 @@ interface HudBarProps {
 
 export const HudBar: React.FC<HudBarProps> = ({
   score,
+  population,
   highScore,
   rank,
   mode,
@@ -211,6 +214,17 @@ export const HudBar: React.FC<HudBarProps> = ({
             </div>
             <div className="font-display text-2xl sm:text-3xl font-black leading-none bg-gradient-to-r from-emerald-500 to-sky-500 bg-clip-text text-transparent">
               {score.toLocaleString()}
+            </div>
+          </div>
+          <div className="h-8 w-px bg-slate-400/25" />
+          <div>
+            <div className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider opacity-60">
+              <Users className="w-3 h-3 text-sky-500" />
+              人口
+            </div>
+            <div className="font-display text-lg sm:text-xl font-extrabold leading-none text-sky-500">
+              {population.toLocaleString()}
+              <span className="text-[11px] font-bold ml-0.5 opacity-80">人</span>
             </div>
           </div>
           <div className="h-8 w-px bg-slate-400/25" />

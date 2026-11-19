@@ -8,7 +8,7 @@ export type BuildingType =
   | 'harbor'
   | 'landmark';
 
-export type CardType = BuildingType | 'bulldozer';
+export type CardType = BuildingType | 'bulldozer' | 'crystal';
 
 export type GameMode = 'free' | 'daily' | 'tutorial';
 
@@ -61,6 +61,7 @@ export interface PlacementPreview {
   synergies: SynergyDetail[];
   mergeSteps: MergeStepPreview[];
   resultingLevel?: 1 | 2 | 3 | 4;
+  crystalTargetType?: BuildingType;
 }
 
 export interface PassiveState {
@@ -141,9 +142,12 @@ export interface RunStats {
 export interface GameSnapshot {
   board: Tile[][];
   score: number;
+  population: number;
   rank: number;
   hand: Card[];
   deck: Card[];
+  storedCard: Card | null;
+  mayorMarks: number;
   quests: Quest[];
   passives: PassiveState;
   stats: RunStats;
@@ -156,6 +160,7 @@ export interface GameState extends GameSnapshot {
   mode: GameMode;
   seedLabel: string;
   selectedHandIndex: number;
+  mayorMode: boolean;
   pendingDraft: DraftOption[] | null;
   isGameOver: boolean;
   gameOverReason: 'no_cards' | 'board_full' | null;

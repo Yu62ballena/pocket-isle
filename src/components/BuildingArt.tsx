@@ -298,6 +298,33 @@ export const BuildingArt: React.FC<BuildingArtProps> = ({
           <circle cx="36" cy="48.5" r="2" fill="#94a3b8" />
         </svg>
       );
+
+    case 'crystal':
+      return (
+        <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
+          <defs>
+            <linearGradient id="crystalGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="50%" stopColor="#e879f9" />
+              <stop offset="100%" stopColor="#fbbf24" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="32" cy="54" rx="19" ry="5.5" fill="rgba(232,121,249,0.28)" />
+          <polygon
+            points="32,6 50,24 44,50 20,50 14,24"
+            fill="url(#crystalGrad)"
+            stroke="#ffffff"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            style={{ filter: 'drop-shadow(0 0 6px rgba(56,189,248,0.65))' }}
+          />
+          <polygon points="32,6 42,24 32,50 22,24" fill="rgba(255,255,255,0.34)" />
+          <polygon points="32,6 50,24 42,24" fill="rgba(255,255,255,0.22)" />
+          <circle cx="13" cy="14" r="2.2" fill="#fde047" />
+          <circle cx="52" cy="16" r="2.4" fill="#67e8f9" />
+          <circle cx="50" cy="40" r="1.8" fill="#f9a8d4" />
+        </svg>
+      );
   }
 };
 

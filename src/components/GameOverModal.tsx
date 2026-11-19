@@ -58,8 +58,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           <div className="font-display text-4xl sm:text-5xl font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 bg-clip-text text-transparent">
             {state.score.toLocaleString()}
           </div>
-          <div className="mt-1.5 flex items-center justify-center gap-3 text-xs font-extrabold text-slate-600">
+          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2.5 text-xs font-extrabold text-slate-600">
             <span>RANK {state.rank}</span>
+            <span>•</span>
+            <span className="text-sky-600">
+              人口 {state.population.toLocaleString()}人
+            </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5 text-amber-500" />

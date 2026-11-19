@@ -18,6 +18,7 @@ const ORDERED_CARDS: CardType[] = [
   'harbor',
   'factory',
   'landmark',
+  'crystal',
   'bulldozer',
 ];
 
@@ -90,6 +91,9 @@ export const GuideModal: React.FC<GuideModalProps> = ({
                 </p>
                 <p>
                   3. <strong>リクエスト＆ランクUPで手札補充</strong>：山札が尽きる前にどんどん延命しよう！
+                </p>
+                <p>
+                  4. <strong>保管庫(S)＆市長マーク(X)</strong>：今は使わないカードを1枚キープしたり、詰まったマスを市長マークで撤去して大連鎖を仕込めるよ！
                 </p>
               </div>
 
