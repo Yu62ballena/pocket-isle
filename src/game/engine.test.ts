@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { BOARD_SIZE, HAND_SIZE, INITIAL_DECK_SIZE } from './constants';
 import {
   applyDraftChoice,
+  applyMayorMark,
   applyPlacement,
   createInitialPassives,
   createNewGame,
   evaluatePlacement,
   swapWithStorehouse,
   undoLastTurn,
-  useMayorMark,
 } from './engine';
 import { TUTORIAL_STEPS } from './tutorial';
 import type { Tile } from './types';
@@ -167,7 +167,7 @@ describe('POCKET ISLE core engine', () => {
       mayorMarks: 1,
     };
     state.board[1][1].building = { type: 'factory', level: 2 };
-    const cleared = useMayorMark(state, 1, 1);
+    const cleared = applyMayorMark(state, 1, 1);
     expect(cleared.board[1][1].building).toBeNull();
     expect(cleared.mayorMarks).toBe(0);
     expect(cleared.population).toBe(0);

@@ -10,12 +10,12 @@ import { QuestPanel } from './components/QuestPanel';
 import { ACHIEVEMENTS, getAtmosphereForRank } from './game/constants';
 import {
   applyDraftChoice,
+  applyMayorMark,
   applyPlacement,
   createNewGame,
   evaluatePlacement,
   swapWithStorehouse,
   undoLastTurn,
-  useMayorMark,
 } from './game/engine';
 import { getTodayDateKey } from './game/rng';
 import { sound } from './game/sound';
@@ -366,7 +366,7 @@ export function App() {
 
       // Mayor Mark emergency clear mode
       if (game.mayorMode) {
-        const cleared = useMayorMark(game, row, col);
+        const cleared = applyMayorMark(game, row, col);
         if (cleared !== game) {
           sound.playBulldoze();
           setGame(cleared);

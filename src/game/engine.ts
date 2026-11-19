@@ -1201,7 +1201,7 @@ export function swapWithStorehouse(state: GameState): GameState {
   };
 }
 
-export function useMayorMark(
+export function applyMayorMark(
   state: GameState,
   row: number,
   col: number,
