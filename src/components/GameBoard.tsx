@@ -75,7 +75,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   return (
     <div
-      className={`relative rounded-[28px] p-3 sm:p-4 bg-gradient-to-br ${seaClass} shadow-[0_20px_50px_rgba(15,23,42,0.28)] border border-white/30 transition-all duration-700 select-none ${
+      className={`relative w-full max-w-[min(100%,540px)] lg:max-w-[min(100%,calc(100vh-165px))] mx-auto rounded-[28px] p-2.5 sm:p-3.5 bg-gradient-to-br ${seaClass} shadow-[0_20px_50px_rgba(15,23,42,0.28)] border border-white/30 transition-all duration-700 select-none ${
         shaking ? 'animate-board-shake' : ''
       }`}
     >

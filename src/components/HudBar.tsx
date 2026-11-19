@@ -58,7 +58,7 @@ export const HudBar: React.FC<HudBarProps> = ({
 
   return (
     <header
-      className={`rounded-3xl p-3 sm:p-4 backdrop-blur-md border shadow-lg transition-colors ${
+      className={`rounded-3xl px-3.5 py-2.5 sm:px-4 sm:py-3 backdrop-blur-md border shadow-lg transition-colors ${
         isNight
           ? 'bg-slate-900/75 border-slate-700/80 text-slate-100'
           : 'bg-white/85 border-white/80 text-slate-800'
@@ -206,7 +206,7 @@ export const HudBar: React.FC<HudBarProps> = ({
       </div>
 
       {/* Score + Rank Progress */}
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[auto_1fr] items-center gap-3">
+      <div className="mt-2 grid grid-cols-1 sm:grid-cols-[auto_1fr] items-center gap-2.5 sm:gap-4">
         <div className="flex items-center gap-4">
           <div>
             <div className="text-[10px] font-extrabold uppercase tracking-wider opacity-60">

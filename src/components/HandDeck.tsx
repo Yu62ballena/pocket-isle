@@ -71,8 +71,8 @@ export const HandDeck: React.FC<HandDeckProps> = ({
         </div>
       </div>
 
-      {/* 3 selectable cards + Storehouse & Mayor Mark controls */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-2.5">
+      {/* 3 selectable cards */}
+      <div className="grid grid-cols-3 gap-2">
         {hand.map((card, idx) => {
           const meta = CARD_META[card.type];
           const isSelected = !mayorMode && idx === selectedIndex;
@@ -85,7 +85,7 @@ export const HandDeck: React.FC<HandDeckProps> = ({
               key={card.id}
               type="button"
               onClick={() => onSelect(idx)}
-              className={`relative flex flex-col items-center rounded-2xl p-2 sm:p-2.5 border-2 transition-all duration-150 cursor-pointer text-left ${
+              className={`relative flex flex-col items-center rounded-2xl p-2 border-2 transition-all duration-150 cursor-pointer text-left ${
                 isSelected
                   ? `bg-gradient-to-b ${meta.accentBg} ${meta.accentBorder} -translate-y-1 shadow-lg ring-2 ring-amber-400/80`
                   : isNight
@@ -111,7 +111,7 @@ export const HandDeck: React.FC<HandDeckProps> = ({
                 </span>
               )}
 
-              <div className="w-11 h-11 sm:w-12 sm:h-12 my-0.5">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 my-0.5">
                 <BuildingArt type={card.type} level={1} isNight={isNight} />
               </div>
 
@@ -128,14 +128,17 @@ export const HandDeck: React.FC<HandDeckProps> = ({
             </button>
           );
         })}
+      </div>
 
+      {/* Storehouse & Mayor Mark controls */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
         {/* Storehouse (Keep slot - inspired by Triple Town) */}
         <button
           type="button"
           disabled={isTutorial || (hand.length <= 1 && deckCount === 0 && !storedCard)}
           onClick={onSwapStorehouse}
           title="選択中のカードを保管庫と入れ替え (S)"
-          className={`col-span-3 sm:col-span-1 relative flex sm:flex-col items-center justify-center gap-2 sm:gap-0.5 rounded-2xl p-2 sm:p-2.5 border-2 border-dashed transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+          className={`relative flex items-center justify-center gap-2 rounded-2xl px-2.5 py-2 border-2 border-dashed transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
             storedCard
               ? isNight
                 ? 'bg-indigo-950/70 border-cyan-400/70 hover:border-cyan-300'
@@ -145,29 +148,26 @@ export const HandDeck: React.FC<HandDeckProps> = ({
                 : 'bg-slate-50/70 border-slate-300 hover:border-slate-400'
           }`}
         >
-          <span className="hidden sm:inline-block absolute top-1.5 left-1.5 rounded-md bg-slate-500/20 px-1 py-0 text-[9px] font-display font-black opacity-75">
-            S
-          </span>
           {storedCard ? (
             <>
-              <div className="w-9 h-9 sm:w-11 sm:h-11">
+              <div className="w-8 h-8 shrink-0">
                 <BuildingArt type={storedCard.type} level={1} isNight={isNight} />
               </div>
-              <div className="text-left sm:text-center">
-                <div className="text-[11px] font-extrabold leading-tight">
-                  キープ：{CARD_META[storedCard.type].shortName}
+              <div className="text-left min-w-0">
+                <div className="text-[11px] font-extrabold leading-tight truncate">
+                  {CARD_META[storedCard.type].shortName}
                 </div>
-                <div className="text-[9px] font-bold opacity-70">押して入替</div>
+                <div className="text-[9px] font-bold opacity-70">保管庫 (S)</div>
               </div>
             </>
           ) : (
             <>
-              <Archive className="w-5 h-5 sm:w-6 sm:h-6 opacity-60 sm:my-2" />
-              <div className="text-left sm:text-center">
+              <Archive className="w-4 h-4 opacity-60 shrink-0" />
+              <div className="text-left">
                 <div className="text-[11px] font-extrabold leading-tight">
                   保管庫(空)
                 </div>
-                <div className="text-[9px] font-bold opacity-65">1枚キープ</div>
+                <div className="text-[9px] font-bold opacity-65">キープ (S)</div>
               </div>
             </>
           )}
@@ -179,32 +179,25 @@ export const HandDeck: React.FC<HandDeckProps> = ({
           disabled={isTutorial || mayorMarks <= 0}
           onClick={onToggleMayorMode}
           title="市長マークで好きな1マスを撤去 (X) — Rank3ごとに+1回復"
-          className={`col-span-3 sm:col-span-1 relative flex sm:flex-col items-center justify-center gap-2 sm:gap-0.5 rounded-2xl p-2 sm:p-2.5 border-2 transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed ${
+          className={`relative flex items-center justify-center gap-2 rounded-2xl px-2.5 py-2 border-2 transition-all cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed ${
             mayorMode
-              ? 'bg-gradient-to-b from-orange-500 to-rose-500 text-white border-amber-200 ring-2 ring-orange-400 shadow-lg -translate-y-0.5'
+              ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white border-amber-200 ring-2 ring-orange-400 shadow-lg'
               : isNight
                 ? 'bg-slate-800/70 border-orange-500/50 hover:border-orange-400'
                 : 'bg-orange-50/80 border-orange-300/80 hover:bg-orange-100/80'
           }`}
         >
-          <span
-            className={`hidden sm:inline-block absolute top-1.5 left-1.5 rounded-md px-1 py-0 text-[9px] font-display font-black ${
-              mayorMode ? 'bg-white/25 text-white' : 'bg-orange-500/15 text-orange-700'
-            }`}
-          >
-            X
-          </span>
           <Hammer
-            className={`w-5 h-5 sm:w-6 sm:h-6 sm:my-1.5 ${
+            className={`w-4 h-4 shrink-0 ${
               mayorMode ? 'text-white animate-bounce' : 'text-orange-500'
             }`}
           />
-          <div className="text-left sm:text-center">
+          <div className="text-left">
             <div className="text-[11px] font-extrabold leading-tight">
-              市長マーク
+              市長マーク (X)
             </div>
             <div className="font-display text-[10px] font-black">
-              {mayorMarks} / {MAX_MAYOR_MARKS}
+              残り {mayorMarks} / {MAX_MAYOR_MARKS}
             </div>
           </div>
         </button>

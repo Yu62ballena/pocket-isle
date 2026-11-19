@@ -449,7 +449,7 @@ export function App() {
       </div>
 
       {/* Main Layout */}
-      <div className="relative z-10 mx-auto max-w-5xl px-3 sm:px-5 py-4 sm:py-6 flex flex-col gap-4">
+      <div className="relative z-10 mx-auto max-w-6xl px-3 sm:px-5 py-2.5 sm:py-3.5 flex flex-col gap-3">
         <HudBar
           score={game.score}
           population={game.population}
@@ -468,11 +468,11 @@ export function App() {
           onOpenGuide={() => setGuideOpen(true)}
         />
 
-        <main className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4 items-start">
-          {/* Left: Tutorial Guide (if active) + Island Board + Live Breakdown + Hand Deck */}
-          <div className="flex flex-col gap-3.5">
+        <main className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_370px] gap-3.5 items-start">
+          {/* Left: Tutorial Guide (if active) + Island Board + Live Breakdown */}
+          <div className="flex flex-col gap-2.5">
             {activeTutorialGuide && (
-              <div className="rounded-3xl bg-gradient-to-r from-sky-500 to-emerald-500 p-3.5 sm:p-4 text-white shadow-lg border border-white/30 animate-toast-in">
+              <div className="rounded-3xl bg-gradient-to-r from-sky-500 to-emerald-500 px-4 py-2.5 text-white shadow-lg border border-white/30 animate-toast-in">
                 <div className="flex items-center justify-between gap-2">
                   <span className="rounded-full bg-white/25 px-2.5 py-0.5 font-display text-[11px] font-black">
                     STEP {activeTutorialGuide.step} / {activeTutorialGuide.totalSteps}
@@ -481,10 +481,10 @@ export function App() {
                     光っている「ここ！」マスをクリック
                   </span>
                 </div>
-                <div className="mt-1.5 text-sm sm:text-base font-black">
+                <div className="mt-1 text-sm font-black">
                   {activeTutorialGuide.title}
                 </div>
-                <p className="mt-0.5 text-xs font-bold text-white/95 leading-relaxed">
+                <p className="mt-0.5 text-xs font-bold text-white/95 leading-snug">
                   {activeTutorialGuide.instruction}
                 </p>
               </div>
@@ -515,7 +515,7 @@ export function App() {
 
             {/* Live score breakdown strip for instant readability */}
             <div
-              className={`min-h-[38px] rounded-2xl px-3.5 py-2 text-xs font-bold flex flex-wrap items-center justify-between gap-2 border transition-colors ${
+              className={`w-full max-w-[min(100%,540px)] lg:max-w-[min(100%,calc(100vh-165px))] mx-auto min-h-[36px] rounded-2xl px-3.5 py-1.5 text-xs font-bold flex flex-wrap items-center justify-between gap-2 border transition-colors ${
                 atmosphere.isNight
                   ? 'bg-slate-900/70 border-slate-700/80 text-slate-200'
                   : 'bg-white/75 border-white/80 text-slate-700'
@@ -555,11 +555,14 @@ export function App() {
                 </>
               ) : (
                 <span className="opacity-70">
-                  島の上のマスにカーソルを合わせると、獲得スコアと隣接シナジーがリアルタイムで見えるよ
+                  マスにカーソルを合わせると、獲得スコアと隣接シナジーが見えるよ
                 </span>
               )}
             </div>
+          </div>
 
+          {/* Right: Hand Deck (always visible without scrolling on PC!) + Resident Quests + Stats */}
+          <div className="flex flex-col gap-3">
             <HandDeck
               hand={game.hand}
               deckCount={game.deck.length}
@@ -573,16 +576,15 @@ export function App() {
               onSwapStorehouse={handleSwapStorehouse}
               onToggleMayorMode={handleToggleMayorMode}
             />
-          </div>
 
-          {/* Right: Resident Quests, Active Draft Passives, Stats */}
-          <QuestPanel
-            quests={game.quests}
-            passives={game.passives}
-            bestTurnScore={game.stats.bestTurnScore}
-            maxChain={game.stats.maxChain}
-            isNight={atmosphere.isNight}
-          />
+            <QuestPanel
+              quests={game.quests}
+              passives={game.passives}
+              bestTurnScore={game.stats.bestTurnScore}
+              maxChain={game.stats.maxChain}
+              isNight={atmosphere.isNight}
+            />
+          </div>
         </main>
       </div>
 

@@ -23,28 +23,28 @@ export const QuestPanel: React.FC<QuestPanelProps> = ({
     .filter((d): d is NonNullable<typeof d> => Boolean(d));
 
   return (
-    <aside className="flex flex-col gap-3">
+    <aside className="flex flex-col gap-2.5">
       {/* Resident Quests */}
       <section
-        className={`rounded-3xl p-4 backdrop-blur-md border shadow-lg transition-colors ${
+        className={`rounded-3xl p-3.5 backdrop-blur-md border shadow-lg transition-colors ${
           isNight
             ? 'bg-slate-900/75 border-slate-700/80 text-slate-100'
             : 'bg-white/85 border-white/80 text-slate-800'
         }`}
       >
-        <div className="mb-2.5 flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-sm font-extrabold">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold">
             <Target className="w-4 h-4 text-emerald-500" />
             住民のリクエスト
           </h2>
           <span className="text-[10px] font-bold opacity-65">達成で手札補充！</span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {quests.map((q) => (
             <div
               key={q.id}
-              className={`rounded-2xl p-3 border transition ${
+              className={`rounded-2xl px-3 py-2 border transition ${
                 isNight
                   ? 'bg-slate-800/80 border-slate-700'
                   : 'bg-gradient-to-br from-emerald-50/80 to-sky-50/70 border-emerald-200/70'
